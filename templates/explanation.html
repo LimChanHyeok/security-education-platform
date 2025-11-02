@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>시나리오별 코드 설명</title>
+  <style>
+    body { 
+      font-family: monospace; 
+      background: #f0f0f0; 
+      padding: 20px; 
+    }
+    .section-buttons { 
+      margin-bottom: 20px; 
+    }
+    button { 
+      padding: 8px 14px; 
+      margin: 5px; 
+      cursor: pointer; 
+    }
+    .code-box { 
+      display: none; 
+    }
+    .active { 
+      display: block; 
+    }
+    /* 변경: 흰 배경에 검은 글씨 */
+    .code-text-block {
+      background: #fff;       /* 흰 배경 */
+      color: #000;            /* 검은 글씨 */
+      border: 1px solid #ccc; /* 선택: 테두리 추가 */
+      padding: 10px;
+      border-radius: 5px;
+      white-space: pre-wrap;
+      margin-bottom: 20px;
+    }
+    .code-line {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 6px;
+    }
+    .code-text {
+      background: #fff;       /* 흰 배경 */
+      color: #000;            /* 검은 글씨 */
+      padding: 6px 10px;
+      border-radius: 5px;
+      width: 100%;
+      white-space: pre;
+    }
+    .toggle-btn {
+      margin-right: 6px;
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-size: 14px;
+      color: #333;
+    }
+    .explanation {
+      margin-left: 24px;
+      margin-top: 4px;
+      color: #333;
+      background: #fff8dc;
+      padding: 6px 10px;
+      border-left: 4px solid orange;
+      border-radius: 4px;
+      display: none;
+      white-space: pre-wrap;
+    }
+    .show { 
+      display: block; 
+    }
+  </style>
+</head>
+<body>
+  <h2>🔍 시나리오별 코드 설명</h2>
+  <div class="section-buttons">
+    <button onclick="showSection('dos')">💥 DoS 공격 설명</button>
+    <button onclick="showSection('dosdef')">🛡️ DoS 방어 설명</button>
+    <button onclick="showSection('portscan')">🔍 포트 스캔 설명</button>
+    <button onclick="showSection('portscan_def')">🛡️ 포트 스캔 방어 설명</button>
+  </div>
+
+  <!-- DoS 공격 섹션 -->
+  <div id="dos" class="code-box active">
+    <h3>💥 DoS 공격 함수 (dos_attack)</h3>
+    <div class="code-text-block">
+def dos_attack(ip, port, rate):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    message = b"Flood" * 10
+    while attack_running:
+        for _ in range(rate):
+            sock.sendto(message, (ip, port))
+    </div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(0)">▶</button><code class="code-text">def dos_attack(ip, port, rate):</code></div>
+    <div id="exp0" class="explanation">Dos 공격을 수행하는 함수: ip, port, rate를 인자로 받습니다.</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(1)">▶</button><code class="code-text">    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)</code></div>
+    <div id="exp1" class="explanation">UDP 소켓을 생성합니다.</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(2)">▶</button><code class="code-text">    message = b"Flood" * 10</code></div>
+    <div id="exp2" class="explanation">Flood 문자열을 반복해 패킷 크기를 설정합니다.</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(3)">▶</button><code class="code-text">    while attack_running:</code></div>
+    <div id="exp3" class="explanation">attack_running이 True인 동안 루프 실행.</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(4)">▶</button><code class="code-text">        for _ in range(rate):</code></div>
+    <div id="exp4" class="explanation">rate만큼 패킷을 전송하기 위한 반복문.</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(5)">▶</button><code class="code-text">            sock.sendto(message, (ip, port))</code></div>
+    <div id="exp5" class="explanation">sock.sendto로 대상 IP, 포트로 메시지를 전송합니다.</div>
+  </div>
+
+  <!-- DoS 방어 섹션 -->
+  <div id="dosdef" class="code-box">
+    <h3>🛡️ DoS 방어 코드</h3>
+    <div class="code-text-block">
+#  DoS 감지
+packet_counter[ip] = [t for t in packet_counter[ip] if now - t < 1.0]
+packet_counter[ip].append(now)
+count = len(packet_counter[ip])
+
+if ip not in blocked_ips and count > threshold:
+    blocked_ips.add(ip)
+    log_msg = (
+        f"🛑 [DoS 공격 감지: UDP Flood]\\n"
+        f"공격 IP: {ip}\\n"
+        f"초당 패킷 수: {count} (임계치 {threshold} 초과)\\n"
+        f" 차단됨"
+    )
+    socketio.emit("log", log_msg)
+    socketio.emit("blocked", list(blocked_ips))
+    return
+    </div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(6)">▶</button><code class="code-text">packet_counter[ip] = [t for t in packet_counter[ip] if now - t < 1.0]</code></div>
+    <div id="exp6" class="explanation">1초 이내의 타임스탬프만 남깁니다.</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(7)">▶</button><code class="code-text">packet_counter[ip].append(now)</code></div>
+    <div id="exp7" class="explanation">현재 시각을 기록합니다.</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(8)">▶</button><code class="code-text">count = len(packet_counter[ip])</code></div>
+    <div id="exp8" class="explanation">최근 1초간 패킷 수를 계산합니다.</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(9)">▶</button><code class="code-text">if ip not in blocked_ips and count > threshold:</code></div>
+    <div id="exp9" class="explanation">임계치 초과 시 차단 처리 조건.</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(10)">▶</button><code class="code-text">    blocked_ips.add(ip)</code></div>
+    <div id="exp10" class="explanation">차단 목록에 IP 추가.</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(11)">▶</button><code class="code-text">    socketio.emit("log", log_msg)</code></div>
+    <div id="exp11" class="explanation">로그 메시지를 클라이언트로 전송합니다.</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(12)">▶</button><code class="code-text">    socketio.emit("blocked", list(blocked_ips))</code></div>
+    <div id="exp12" class="explanation">차단 목록을 갱신합니다.</div>
+  </div>
+
+  <!-- 포트 스캔 섹션 -->
+  <div id="portscan" class="code-box">
+    <h3>🔍 포트 스캔 함수 (scan_port)</h3>
+    <div class="code-text-block">
+def scan_port(ip, port, result_list):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        result = sock.connect_ex((ip, port))
+        result_list.append((port, result == 0))
+    </div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(15)">▶</button><code class="code-text">def scan_port(ip, port, result_list):</code></div>
+    <div id="exp15" class="explanation">포트 스캔 함수 정의</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(16)">▶</button><code class="code-text">    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:</code></div>
+    <div id="exp16" class="explanation">TCP 소켓을 생성하고 자동 종료</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(17)">▶</button><code class="code-text">        result = sock.connect_ex((ip, port))</code></div>
+    <div id="exp17" class="explanation">포트 연결 시도 결과를 확인</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(18)">▶</button><code class="code-text">        result_list.append((port, result == 0))</code></div>
+    <div id="exp18" class="explanation">열려 있으면 True, 아니면 False</div>
+  </div>
+
+  <!-- 포트 스캔 방어 섹션 -->
+  <div id="portscan_def" class="code-box">
+    <h3>🛡️ 포트 스캔 방어 코드</h3>
+    <div class="code-text-block">
+#  포트 스캔 감지
+if data.get("protocol") == "TCP" and dst_port:
+    portscan_counter[ip] = [t for t in portscan_counter[ip] if now - t < 1.0]
+    portscan_counter[ip].append(now)
+    scan_rate = len(portscan_counter[ip])
+
+    if ip not in blocked_ips and scan_rate > scan_threshold:
+        blocked_ips.add(ip)
+        log_msg = (
+            f"🛑 [포트 스캔 감지]\\n"
+            f"공격 IP: {ip}\\n"
+            f"1초내 시도: {scan_rate}개 (임계치 {scan_threshold})\\n"
+            f" 차단됨"
+        )
+        socketio.emit("log", log_msg)
+        socketio.emit("blocked", list(blocked_ips))
+    </div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(19)">▶</button><code class="code-text">if data.get("protocol") == "TCP" and dst_port:</code></div>
+    <div id="exp19" class="explanation">TCP 프로토콜 & 포트 존재 여부 확인</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(20)">▶</button><code class="code-text">portscan_counter[ip] = [t for t in portscan_counter[ip] if now - t < 1.0]</code></div>
+    <div id="exp20" class="explanation">1초 이내 시도만 유지</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(21)">▶</button><code class="code-text">portscan_counter[ip].append(now)</code></div>
+    <div id="exp21" class="explanation">현재 시간 기록</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(22)">▶</button><code class="code-text">scan_rate = len(portscan_counter[ip])</code></div>
+    <div id="exp22" class="explanation">시도 횟수 계산</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(23)">▶</button><code class="code-text">if ip not in blocked_ips and scan_rate > scan_threshold:</code></div>
+    <div id="exp23" class="explanation">임계치 초과 시 차단</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(24)">▶</button><code class="code-text">blocked_ips.add(ip)</code></div>
+    <div id="exp24" class="explanation">차단 목록에 추가</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(25)">▶</button><code class="code-text">socketio.emit("log", log_msg)</code></div>
+    <div id="exp25" class="explanation">로그 전송</div>
+    <div class="code-line"><button class="toggle-btn" onclick="toggle(26)">▶</button><code class="code-text">socketio.emit("blocked", list(blocked_ips))</code></div>
+    <div id="exp26" class="explanation">UI 갱신</div>
+  </div>
+
+  <script>
+    function showSection(id) {
+      document.querySelectorAll('.code-box').forEach(el => el.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+    function toggle(index) {
+      const exp = document.getElementById('exp' + index);
+      if (exp) exp.classList.toggle('show');
+    }
+  </script>
+</body>
+</html>

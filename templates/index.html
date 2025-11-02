@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>실시간 패킷 로그</title>
+    <meta charset="UTF-8" />
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; }
+        .container { display: flex; height: 100vh; }
+        .left-panel { width: 50%; padding: 10px; overflow-y: auto; border-right: 1px solid #ccc; }
+        .right-panel { width: 50%; display: flex; flex-direction: column; }
+        .chart-container { flex: 1; padding: 10px; }
+        .log-container { height: 40%; padding: 10px; display: flex; background-color: #f7f7f7; border-top: 1px solid #ccc; gap: 10px; }
+        .logs-box { flex: 7; overflow-y: auto; }
+        .blocked-box { flex: 3; background-color: #fff; border-left: 1px solid #ccc; overflow-y: auto; padding: 0 10px; }
+        .log-message { background-color: #dcf8c6; padding: 8px; border-radius: 10px; margin: 6px 0; font-size: 14px; }
+        .blocked-item { margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .blocked-item button { font-size: 12px; padding: 2px 6px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background-color: #f2f2f2; }
+        .filter-container { margin-bottom: 10px; }
+        .filter-container input, .threshold-select, .mode-select { margin-right: 5px; padding: 6px; }
+        .packet-normal { background-color: #e6f7e6; }
+        .packet-blocked { background-color: #fde8e8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <h2>📡 실시간 패킷 표</h2>
+            <div class="filter-container">
+                <input type="text" id="sourceFilter" placeholder="출발지 IP 필터">
+                <input type="text" id="destinationFilter" placeholder="목적지 IP 필터">
+                <select id="thresholdSelect" class="threshold-select">
+                    <option value="10">DoS 10개/초</option>
+                    <option value="50">DoS 50개/초</option>
+                    <option value="100" selected>DoS 100개/초</option>
+                    <option value="150">DoS 150개/초</option>
+                </select>
+                <select id="scanThresholdSelect" class="threshold-select">
+                    <option value="10">스캔 10개/초</option>
+                    <option value="15" selected>스캔 15개/초</option>
+                    <option value="20">스캔 20개/초</option>
+                    <option value="50">스캔 50개/초</option>
+                </select> 
+                <select id="modeSelect" class="mode-select">
+                    <option value="all">전체 보기</option>
+                    <option value="normal">정상 패킷만</option>
+                    <option value="blocked">차단된 패킷만</option>
+                </select>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>시간</th><th>출발지</th><th>목적지</th><th>프로토콜</th><th>크기</th><th>상태</th><th>데이터</th>
+                    </tr>
+                </thead>
+                <tbody id="packet-table-body"></tbody>
+            </table>
+        </div>
+        <div class="right-panel">
+            <div class="chart-container">
+                <h2>📈 초당 패킷 수</h2>
+                <canvas id="protocolChart"></canvas>
+            </div>
+            <div class="log-container">
+                <div class="logs-box">
+                    <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                        📨 설명 로그
+                        <button onclick="window.open('/explanation', '_blank', 'width=800,height=600')">
+                            🔍 추가 설명
+                        </button>
+                    </h3>
+                    <div id="logMessages"></div>
+                </div>
+                <div class="blocked-box">
+                    <h3>🚫 차단된 IP</h3>
+                    <ul id="blockedList"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Socket.IO 및 Chart.js -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+    <script>
+        const socket = io();
+        const tableBody = document.getElementById("packet-table-body");
+        const logMessages = document.getElementById("logMessages");
+        const blockedList = document.getElementById("blockedList");
+        const thresholdSelect = document.getElementById("thresholdSelect");
+        const scanThresholdSelect = document.getElementById("scanThresholdSelect");
+        const modeSelect = document.getElementById("modeSelect");
+        const sourceFilterInput = document.getElementById("sourceFilter");
+        const destinationFilterInput = document.getElementById("destinationFilter");
+
+        const allPackets = [];
+        const packetCounts = {};
+        const blockedIPs = new Set();
+
+        const chart = new Chart(document.getElementById("protocolChart").getContext("2d"), {
+            type: "line",
+            data: {
+                labels: [],
+                datasets: [{
+                    label: "초당 패킷 수",
+                    data: [],
+                    borderColor: "rgba(75, 192, 192, 1)",
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    x: { type: "time", time: { unit: "second" }, title: { display: true, text: "시간" } },
+                    y: { beginAtZero: true, title: { display: true, text: "패킷 수" } }
+                }
+            }
+        });
+
+        function updateChart(ts) {
+            const key = ts.slice(0, 19);
+            if (!packetCounts[key]) packetCounts[key] = 0;
+            packetCounts[key]++;
+            const labels = Object.keys(packetCounts).slice(-30);
+            const data = labels.map(k => packetCounts[k]);
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = data;
+            chart.update();
+        }
+
+        function isPacketVisible(data) {
+            const s = sourceFilterInput.value.trim();
+            const d = destinationFilterInput.value.trim();
+            const mode = modeSelect.value;
+
+            const matchSource = !s || data.source.includes(s);
+            const matchDest = !d || data.destination.includes(d);
+
+            const isBlocked = data.status === "차단됨";
+            if (mode === "normal" && isBlocked) return false;
+            if (mode === "blocked" && !isBlocked) return false;
+
+            return matchSource && matchDest;
+        }
+
+        function redrawTable() {
+            tableBody.innerHTML = "";
+            allPackets.forEach(data => {
+                if (!isPacketVisible(data)) return;
+                const row = document.createElement("tr");
+
+                if (data.status === "차단됨") {
+                    row.classList.add("packet-blocked");
+                } else if (data.status === "전송됨" && data.protocol === "Custom") {
+                    row.classList.add("packet-normal");
+                }
+
+                row.innerHTML = `
+                    <td>${data.timestamp}</td>
+                    <td>${data.source}</td>
+                    <td>${data.destination}</td>
+                    <td>${data.protocol}</td>
+                    <td>${data.length}</td>
+                    <td>${data.status}</td>
+                    <td><pre>${data.payload || "-"}</pre></td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function addLogMessage(msg) {
+            const div = document.createElement("div");
+            div.className = "log-message";
+            div.innerText = msg;
+            logMessages.prepend(div);
+        }
+
+        function updateBlockedListView() {
+            blockedList.innerHTML = "";
+            blockedIPs.forEach(ip => {
+                const li = document.createElement("li");
+                li.className = "blocked-item";
+                li.innerHTML = `
+                    <span>${ip}</span>
+                    <button onclick="unblockIP('${ip}')">해제</button>
+                `;
+                blockedList.appendChild(li);
+            });
+        }
+
+        function unblockIP(ip) {
+            blockedIPs.delete(ip);
+            socket.emit("unblock", ip);
+        }
+
+        socket.on("packet", (data) => {
+            data.status = "전송됨";
+            allPackets.unshift(data);
+            if (data.timestamp) updateChart(data.timestamp);
+            redrawTable();
+            if (data.protocol === "Custom") {
+                addLogMessage(`정상적으로 ping (${data.source} → ${data.destination}, ${data.timestamp})을 보냈습니다.`);
+            }
+        });
+
+        socket.on("blocked_packet", (data) => {
+            data.status = "차단됨";
+            allPackets.unshift(data);
+            redrawTable();
+        });
+
+        socket.on("log", msg => {
+            addLogMessage(msg);
+        });
+
+        socket.on("blocked", ipList => {
+            blockedIPs.clear();
+            ipList.forEach(ip => blockedIPs.add(ip));
+            updateBlockedListView();
+        });
+
+        thresholdSelect.addEventListener("change", () => {
+            const val = thresholdSelect.value;
+            socket.emit("update_threshold", val);
+        });
+
+        scanThresholdSelect.addEventListener("change", () => {
+            const val = scanThresholdSelect.value;
+            socket.emit("update_scan_threshold", val);
+        });
+
+        sourceFilterInput.addEventListener("input", redrawTable);
+        destinationFilterInput.addEventListener("input", redrawTable);
+        modeSelect.addEventListener("change", redrawTable);
+    </script>
+</body>
+</html>
